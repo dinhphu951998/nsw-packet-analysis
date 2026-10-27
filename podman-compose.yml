@@ -1,0 +1,52 @@
+networks:
+  labnet:
+    driver: bridge
+    # no route out of the host: lab traffic stays on this bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${LAB_SUBNET}
+          gateway: ${LAB_GATEWAY}
+
+services:
+  target:
+    image: nginx:alpine
+    networks:
+      labnet:
+        ipv4_address: ${TARGET_IP}
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  # shares the target's network namespace, so it sees every packet aimed at the target
+  sniffer:
+    build:
+      context: ./sniffer
+      dockerfile: Containerfile
+    network_mode: "service:target"
+    cap_add: [NET_ADMIN, NET_RAW]
+    env_file: .env
+    volumes:
+      - ./captures:/captures
+    depends_on:
+      target:
+        condition: service_healthy
+
+  attacker:
+    build:
+      context: ./attacker
+      dockerfile: Containerfile
+    networks:
+      labnet:
+        ipv4_address: ${ATTACKER_IP}
+    cap_add: [NET_ADMIN, NET_RAW]
+    env_file: .env
+    depends_on:
+      target:
+        condition: service_healthy
+      sniffer:
+        condition: service_started

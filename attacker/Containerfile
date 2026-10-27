@@ -1,0 +1,12 @@
+FROM alpine:3.20
+
+# apk verifies every index and package signature, so plain HTTP here only affects availability.
+# It avoids TLS failures on networks that intercept HTTPS (the build image does not trust the proxy CA).
+# hping3 is not packaged for Alpine, so the flood and crafted-packet steps use the scapy fallback in packets.py.
+RUN sed -i 's|https://|http://|' /etc/apk/repositories \
+ && apk add --no-cache nmap curl apache2-utils python3 scapy
+
+COPY run-activities.sh packets.py /opt/attacker/
+RUN chmod +x /opt/attacker/run-activities.sh
+
+CMD ["/opt/attacker/run-activities.sh"]

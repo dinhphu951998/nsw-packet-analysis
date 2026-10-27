@@ -1,0 +1,9 @@
+FROM alpine:3.20
+
+# same mirror workaround as attacker/Containerfile: apk checks package signatures
+RUN sed -i 's|https://|http://|' /etc/apk/repositories \
+ && apk add --no-cache tcpdump
+
+# exec makes tcpdump PID 1, so the SIGTERM from lab.sh reaches it and flushes the pcap
+# -B 65536 gives the kernel capture buffer 64 MiB (value in KiB), so the SYN and HTTP bursts are not dropped
+ENTRYPOINT ["sh", "-c", "exec tcpdump -i eth0 -n -s \"$CAPTURE_SNAPLEN\" -U -B 65536 -w \"/captures/$PCAP_FILE\""]
